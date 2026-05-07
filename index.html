@@ -181,8 +181,14 @@
         <div class="form-group">
           <label>Pas Foto <span class="req">*</span></label>
           <div id="fotoUploadArea" onclick="document.getElementById('fotoInput').click()" style="border:2px dashed var(--border);border-radius:12px;padding:24px;text-align:center;cursor:pointer;background:#fafafa;transition:all 0.2s">
-            <div id="fotoPreview" style="display:none;margin-bottom:10px"><img id="fotoImg" style="width:100px;height:130px;object-fit:cover;border-radius:8px;border:2px solid var(--red)" src="" alt="Foto"></div>
-            <div id="fotoPlaceholder"><div style="font-size:36px;margin-bottom:8px">📷</div><div style="font-size:14px;color:var(--gray);font-weight:600">Ketuk untuk pilih foto</div><div style="font-size:12px;color:#aaa;margin-top:4px">JPG, PNG • Maks 2MB</div></div>
+            <div id="fotoPreview" style="display:none;margin-bottom:10px">
+              <img id="fotoImg" style="width:100px;height:130px;object-fit:cover;border-radius:8px;border:2px solid var(--red)" src="" alt="Foto">
+            </div>
+            <div id="fotoPlaceholder">
+              <div style="font-size:36px;margin-bottom:8px">📷</div>
+              <div style="font-size:14px;color:var(--gray);font-weight:600">Ketuk untuk pilih foto</div>
+              <div style="font-size:12px;color:#aaa;margin-top:4px">JPG, PNG • Maks 5MB</div>
+            </div>
             <div id="fotoNama" style="font-size:12px;color:var(--success);margin-top:8px;display:none"></div>
           </div>
           <input type="file" id="fotoInput" accept="image/*" style="display:none" onchange="previewFoto(this)">
@@ -368,7 +374,7 @@
 // ============================================================
 // GANTI INI DENGAN URL APPS SCRIPT KAMU
 // ============================================================
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmqldP1Eo5aP825BedCpRpJ-WPxTgR0epgozQeyq56Bt5RlLrKHK5qAY8Y76Veq2Cn/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdMRjXuJwlEmxUBvI_HMS3LmmmGXIncAp7zwNgKD4RITdbH4xSUwiWZamimvR-t_Y5/exec';
 
 // ============================================================
 // DATA KAMUS STATIC
@@ -503,12 +509,120 @@ function hitungUsia() { const t=v('tanggalLahir'); if(!t)return; const d=new Dat
 function showToast(msg,isErr=false) { const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'+(isErr?' error':''); setTimeout(()=>t.className='toast',3500); }
 
 // ============================================================
+// FOTO - Upload ke Cloudinary
+// ============================================================
+function previewFoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('⚠️ Foto terlalu besar! Maks 5MB', true);
+    input.value = '';
+    return;
+  }
+  fotoFile = file;
+  fotoMimeType = file.type;
+  const r = new FileReader();
+  r.onload = function(e) {
+    fotoBase64 = e.target.result.split(',')[1];
+    document.getElementById('fotoImg').src = e.target.result;
+    document.getElementById('fotoPreview').style.display = 'block';
+    document.getElementById('fotoPlaceholder').style.display = 'none';
+    document.getElementById('fotoNama').textContent = '✅ ' + file.name;
+    document.getElementById('fotoNama').style.display = 'block';
+    document.getElementById('fotoUploadArea').style.borderColor = 'var(--success)';
+  };
+  r.readAsDataURL(file);
+}
+
+async function uploadFotoCloudinary(namaFile) {
+  if (!fotoFile) return '';
+  try {
+    const formData = new FormData();
+    formData.append('file', fotoFile);
+    formData.append('upload_preset', CLOUDINARY_PRESET);
+    formData.append('public_id', namaFile);
+    formData.append('folder', 'foto_kandidat');
+
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
+      { method: 'POST', body: formData }
+    );
+
+    if (!res.ok) {
+      const err = await res.json();
+      console.error('Cloudinary error:', err);
+      return '';
+    }
+
+    const result = await res.json();
+    return result.secure_url;
+  } catch(e) {
+    console.error('uploadFotoCloudinary error:', e);
+    return '';
+  }
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function v(id) { const e=document.getElementById(id); return e?e.value.trim():''; }
+function autoKapital(el) { const p=el.selectionStart; el.value=el.value.toUpperCase(); el.setSelectionRange(p,p); }
+function formatRupiah(el) { let r=el.value.replace(/[^0-9]/g,''); el.value=r?parseInt(r).toLocaleString('id-ID'):''; }
+function selectRadio(f,v,el) { radioValues[f]=v; document.getElementById(f).querySelectorAll('.radio-btn').forEach(b=>b.classList.remove('selected')); el.classList.add('selected'); }
+function hitungUsia() { const t=v('tanggalLahir'); if(!t)return; const d=new Date(t),n=new Date(); let a=n.getFullYear()-d.getFullYear(); if(n.getMonth()-d.getMonth()<0||(n.getMonth()-d.getMonth()===0&&n.getDate()<d.getDate()))a--; document.getElementById('usia').value=a; }
+function showToast(msg,isErr=false) { const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'+(isErr?' error':''); setTimeout(()=>t.className='toast',3500); }
+
+// ============================================================
+// FOTO - Preview dari link
+// ============================================================
+function previewFotoLink(input) {
+  const url = input.value.trim();
+  if (!url) {
+    document.getElementById('fotoPreview').style.display = 'none';
+    linkFotoValue = '';
+    return;
+  }
+
+  // Convert Google Drive link ke direct link
+  let previewUrl = url;
+  const driveMatch = url.match(/\/d\/(.*?)\//);
+  if (driveMatch) {
+    previewUrl = 'https://drive.google.com/uc?export=view&id=' + driveMatch[1];
+  }
+
+  // Try to show preview
+  const img = document.getElementById('fotoImg');
+  img.src = previewUrl;
+  img.onload = function() {
+    document.getElementById('fotoPreview').style.display = 'block';
+    linkFotoValue = url;
+    input.style.borderColor = 'var(--success)';
+  };
+  img.onerror = function() {
+    document.getElementById('fotoPreview').style.display = 'none';
+    linkFotoValue = url; // Tetap simpan link meskipun preview gagal
+    input.style.borderColor = 'var(--orange)';
+  };
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function v(id) { const e=document.getElementById(id); return e?e.value.trim():''; }
+function autoKapital(el) { const p=el.selectionStart; el.value=el.value.toUpperCase(); el.setSelectionRange(p,p); }
+function formatRupiah(el) { let r=el.value.replace(/[^0-9]/g,''); el.value=r?parseInt(r).toLocaleString('id-ID'):''; }
+function selectRadio(f,v,el) { radioValues[f]=v; document.getElementById(f).querySelectorAll('.radio-btn').forEach(b=>b.classList.remove('selected')); el.classList.add('selected'); }
+function hitungUsia() { const t=v('tanggalLahir'); if(!t)return; const d=new Date(t),n=new Date(); let a=n.getFullYear()-d.getFullYear(); if(n.getMonth()-d.getMonth()<0||(n.getMonth()-d.getMonth()===0&&n.getDate()<d.getDate()))a--; document.getElementById('usia').value=a; }
+function showToast(msg,isErr=false) { const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'+(isErr?' error':''); setTimeout(()=>t.className='toast',3500); }
+
+// ============================================================
 // FOTO - Upload langsung ke Google Drive
 // ============================================================
-const DRIVE_API_KEY = 'AIzaSyB7eb49iJuJYD_EkZI6eh4XYjh7cGy86R4';
-const DRIVE_FOLDER_ID = '1kMYrlKaqxscMxMGWXxFVgyXyMxDFNOh1';
+const CLOUDINARY_CLOUD = 'dok27xp0t';
+const CLOUDINARY_PRESET = 'Form Kandidat';
 let fotoFile = null;
-let fotoLinkDrive = '';
+let fotoBase64 = '';
+let fotoMimeType = '';
 
 function previewFoto(input) {
   const file = input.files[0];
@@ -657,21 +771,11 @@ function goToPreview() {
 async function submitForm() {
   document.getElementById('loadingOverlay').classList.add('show');
 
-  // Update loading UI
-  function setLoading(title, subtitle, pct, step) {
-    document.getElementById('loadingTitle').textContent = title;
-    document.getElementById('loadingSubtitle').textContent = subtitle;
-    document.getElementById('loadingBar').style.width = pct + '%';
-    document.getElementById('loadingStep').textContent = step;
-  }
-
-  // Upload foto ke Drive dulu dengan nama sementara (romaji + timestamp)
-  setLoading('📤 Mengupload foto...', 'Foto sedang diunggah ke server', 30, 'Langkah 1 dari 2');
+  // Upload foto ke Cloudinary
+  showToast('📤 Mengupload foto...');
   const romaji = document.getElementById('romaji').value.trim().replace(/\s+/g,'_') || 'kandidat';
-  const namaTemp = romaji + '_' + Date.now() + (fotoMimeType === 'image/png' ? '.png' : '.jpg');
-  const fotoResult = fotoFile ? await uploadFotoDrive(namaTemp) : { link: '', fileId: '' };
-  const linkFoto = fotoResult.link;
-  const fotoUploadId = fotoResult.fileId || '';
+  const namaFile = romaji + '_' + Date.now();
+  const linkFoto = fotoFile ? await uploadFotoCloudinary(namaFile) : '';
 
   setLoading('💾 Menyimpan data...', 'Data sedang disimpan ke database', 70, 'Langkah 2 dari 2');
 
