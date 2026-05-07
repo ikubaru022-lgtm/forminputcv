@@ -593,6 +593,7 @@ function showToast(msg,isErr=false) { const t=document.getElementById('toast'); 
 // FOTO - Upload langsung ke Google Drive
 // ============================================================
 const CLOUDINARY_CLOUD = 'dok27xp0t';
+const CLOUDINARY_PRESET = 'Form Kandidat';
 
 
 
@@ -675,7 +676,7 @@ async function submitForm() {
   const namaFile = romaji + '_' + Date.now();
   const linkFoto = fotoFile ? await uploadFotoCloudinary(namaFile) : '';
 
-  setLoading('💾 Menyimpan data...', 'Data sedang disimpan ke database', 70, 'Langkah 2 dari 2');
+  showToast('💾 Menyimpan data...');
 
   const data = {
     furigana:v('furigana'), romaji:v('romaji'), tanggalLahir:v('tanggalLahir'),
@@ -712,8 +713,6 @@ async function submitForm() {
   })
   .then(r => r.json())
   .then(result => {
-    setLoading('✅ Selesai!', 'Data berhasil disimpan', 100, 'Selesai');
-    setTimeout(() => {
     document.getElementById('loadingOverlay').classList.remove('show');
     if (result.success) {
       document.querySelector('.container').style.display = 'none';
@@ -729,7 +728,7 @@ async function submitForm() {
     } else {
       showToast('Gagal: ' + result.error, true);
     }
-    }, 500); // end setTimeout
+
   })
   .catch(() => {
     document.getElementById('loadingOverlay').classList.remove('show');
