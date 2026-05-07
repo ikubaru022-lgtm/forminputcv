@@ -361,7 +361,7 @@
 // ============================================================
 // GANTI INI DENGAN URL APPS SCRIPT KAMU
 // ============================================================
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx37P49jZuzhDYq2GufY5sw_RPeyndq61w8fiMUlhEQhiSdp4A9-XKR0bLYrXMVfzSG/exec';
+const APPS_SCRIPT_URL = 'GANTI_DENGAN_URL_APPS_SCRIPT_KAMU';
 
 // ============================================================
 // DATA KAMUS STATIC
@@ -495,22 +495,102 @@ function selectRadio(f,v,el) { radioValues[f]=v; document.getElementById(f).quer
 function hitungUsia() { const t=v('tanggalLahir'); if(!t)return; const d=new Date(t),n=new Date(); let a=n.getFullYear()-d.getFullYear(); if(n.getMonth()-d.getMonth()<0||(n.getMonth()-d.getMonth()===0&&n.getDate()<d.getDate()))a--; document.getElementById('usia').value=a; }
 function showToast(msg,isErr=false) { const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'+(isErr?' error':''); setTimeout(()=>t.className='toast',3500); }
 
-// FOTO
+// ============================================================
+// FOTO - Upload langsung ke Google Drive
+// ============================================================
+const DRIVE_API_KEY = 'AIzaSyB7eb49iJuJYD_EkZI6eh4XYjh7cGy86R4';
+const DRIVE_FOLDER_ID = '1kMYrlKaqxscMxMGWXxFVgyXyMxDFNOh1';
+let fotoFile = null;
+let fotoLinkDrive = '';
+
 function previewFoto(input) {
-  const file=input.files[0]; if(!file)return;
-  if(file.size>2*1024*1024){showToast('⚠️ Foto terlalu besar! Maks 2MB',true);input.value='';return;}
-  fotoMimeType=file.type;
-  const r=new FileReader();
-  r.onload=function(e){
-    fotoBase64=e.target.result.split(',')[1];
-    document.getElementById('fotoImg').src=e.target.result;
-    document.getElementById('fotoPreview').style.display='block';
-    document.getElementById('fotoPlaceholder').style.display='none';
-    document.getElementById('fotoNama').textContent='✅ '+file.name;
-    document.getElementById('fotoNama').style.display='block';
-    document.getElementById('fotoUploadArea').style.borderColor='var(--success)';
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('⚠️ Foto terlalu besar! Maks 5MB', true);
+    input.value = '';
+    return;
+  }
+  fotoFile = file;
+  fotoMimeType = file.type;
+
+  const r = new FileReader();
+  r.onload = function(e) {
+    fotoBase64 = e.target.result.split(',')[1];
+    document.getElementById('fotoImg').src = e.target.result;
+    document.getElementById('fotoPreview').style.display = 'block';
+    document.getElementById('fotoPlaceholder').style.display = 'none';
+    document.getElementById('fotoNama').textContent = '✅ ' + file.name;
+    document.getElementById('fotoNama').style.display = 'block';
+    document.getElementById('fotoUploadArea').style.borderColor = 'var(--success)';
   };
   r.readAsDataURL(file);
+}
+
+async function uploadFotoDrive(namaFile) {
+  if (!fotoFile) return '';
+  try {
+    // Step 1: Initiate resumable upload
+    const metadata = {
+      name: namaFile,
+      parents: [DRIVE_FOLDER_ID],
+      mimeType: fotoFile.type
+    };
+
+    const initRes = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&key=' + DRIVE_API_KEY,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'multipart/related; boundary=boundary123' },
+        body: '--boundary123
+Content-Type: application/json
+
+' +
+              JSON.stringify(metadata) +
+              '
+--boundary123
+Content-Type: ' + fotoFile.type + '
+
+' +
+              await fotoFile.text() + '
+--boundary123--'
+      }
+    );
+
+    // Gunakan FormData multipart
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], {type:'application/json'}));
+    form.append('file', fotoFile);
+
+    const res = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&key=' + DRIVE_API_KEY,
+      { method: 'POST', body: form }
+    );
+
+    if (!res.ok) {
+      const err = await res.json();
+      console.error('Drive upload error:', err);
+      return '';
+    }
+
+    const result = await res.json();
+    const fileId = result.id;
+
+    // Step 2: Set permission public
+    await fetch(
+      'https://www.googleapis.com/drive/v3/files/' + fileId + '/permissions?key=' + DRIVE_API_KEY,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'reader', type: 'anyone' })
+      }
+    );
+
+    return 'https://drive.google.com/uc?export=view&id=' + fileId;
+  } catch(e) {
+    console.error('uploadFotoDrive error:', e);
+    return '';
+  }
 }
 
 // ============================================================
@@ -583,8 +663,13 @@ function goToPreview() {
 // ============================================================
 // SUBMIT - kirim ke Apps Script via fetch
 // ============================================================
-function submitForm() {
+async function submitForm() {
   document.getElementById('loadingOverlay').classList.add('show');
+
+  // Upload foto ke Drive dulu
+  showToast('📤 Mengupload foto...');
+  const noIdTemp = 'foto-' + Date.now();
+  const linkFoto = fotoFile ? await uploadFotoDrive(noIdTemp + (fotoMimeType === 'image/png' ? '.png' : '.jpg')) : '';
 
   const data = {
     furigana:v('furigana'), romaji:v('romaji'), tanggalLahir:v('tanggalLahir'),
@@ -598,7 +683,9 @@ function submitForm() {
     riwayatKeJepang:radioValues['riwayatKeJepang']||'',
     berapaKaliInterview:v('berapaKaliInterview'), hobi:v('hobi'),
     deskripsiDiri:v('deskripsiDiri'), jumlahTabungan:v('jumlahTabungan'),
-    fotoBase64:fotoBase64, fotoMimeType:fotoMimeType||'image/jpeg',
+    fotoBase64:'',
+    fotoMimeType:fotoMimeType||'image/jpeg',
+    linkFotoDrive: linkFoto,
   };
 
   for(let i=1;i<=4;i++){
