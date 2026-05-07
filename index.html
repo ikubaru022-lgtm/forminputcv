@@ -666,10 +666,13 @@ function goToPreview() {
 async function submitForm() {
   document.getElementById('loadingOverlay').classList.add('show');
 
-  // Upload foto ke Drive dulu
+  // Upload foto ke Drive dulu dengan nama sementara (romaji + timestamp)
   showToast('📤 Mengupload foto...');
-  const noIdTemp = 'foto-' + Date.now();
-  const linkFoto = fotoFile ? await uploadFotoDrive(noIdTemp + (fotoMimeType === 'image/png' ? '.png' : '.jpg')) : '';
+  const romaji = document.getElementById('romaji').value.trim().replace(/\s+/g,'_') || 'kandidat';
+  const namaTemp = romaji + '_' + Date.now() + (fotoMimeType === 'image/png' ? '.png' : '.jpg');
+  const fotoResult = fotoFile ? await uploadFotoDrive(namaTemp) : { link: '', fileId: '' };
+  const linkFoto = fotoResult.link;
+  const fotoFileId = fotoResult.fileId;
 
   const data = {
     furigana:v('furigana'), romaji:v('romaji'), tanggalLahir:v('tanggalLahir'),
@@ -686,6 +689,7 @@ async function submitForm() {
     fotoBase64:'',
     fotoMimeType:fotoMimeType||'image/jpeg',
     linkFotoDrive: linkFoto,
+    fotoFileId: fotoFileId,
   };
 
   for(let i=1;i<=4;i++){
