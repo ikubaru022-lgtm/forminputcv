@@ -374,7 +374,7 @@
 // ============================================================
 // GANTI INI DENGAN URL APPS SCRIPT KAMU
 // ============================================================
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdMRjXuJwlEmxUBvI_HMS3LmmmGXIncAp7zwNgKD4RITdbH4xSUwiWZamimvR-t_Y5/exec';
+const APPS_SCRIPT_URL = 'GANTI_DENGAN_URL_APPS_SCRIPT_KAMU';
 
 // ============================================================
 // DATA KAMUS STATIC
@@ -419,6 +419,9 @@ const KAMUS_STATIC = {
 
 let currentStep = 0;
 const radioValues = {};
+let fotoFile = null;
+let fotoBase64 = '';
+let fotoMimeType = '';
 
 
 window.onload = function() {
@@ -575,35 +578,6 @@ function showToast(msg,isErr=false) { const t=document.getElementById('toast'); 
 // ============================================================
 // FOTO - Preview dari link
 // ============================================================
-function previewFotoLink(input) {
-  const url = input.value.trim();
-  if (!url) {
-    document.getElementById('fotoPreview').style.display = 'none';
-    linkFotoValue = '';
-    return;
-  }
-
-  // Convert Google Drive link ke direct link
-  let previewUrl = url;
-  const driveMatch = url.match(/\/d\/(.*?)\//);
-  if (driveMatch) {
-    previewUrl = 'https://drive.google.com/uc?export=view&id=' + driveMatch[1];
-  }
-
-  // Try to show preview
-  const img = document.getElementById('fotoImg');
-  img.src = previewUrl;
-  img.onload = function() {
-    document.getElementById('fotoPreview').style.display = 'block';
-    linkFotoValue = url;
-    input.style.borderColor = 'var(--success)';
-  };
-  img.onerror = function() {
-    document.getElementById('fotoPreview').style.display = 'none';
-    linkFotoValue = url; // Tetap simpan link meskipun preview gagal
-    input.style.borderColor = 'var(--orange)';
-  };
-}
 
 // ============================================================
 // HELPERS
@@ -619,84 +593,8 @@ function showToast(msg,isErr=false) { const t=document.getElementById('toast'); 
 // FOTO - Upload langsung ke Google Drive
 // ============================================================
 const CLOUDINARY_CLOUD = 'dok27xp0t';
-const CLOUDINARY_PRESET = 'Form Kandidat';
-let fotoFile = null;
-let fotoBase64 = '';
-let fotoMimeType = '';
 
-function previewFoto(input) {
-  const file = input.files[0];
-  if (!file) return;
-  if (file.size > 5 * 1024 * 1024) {
-    showToast('⚠️ Foto terlalu besar! Maks 5MB', true);
-    input.value = '';
-    return;
-  }
-  fotoFile = file;
-  fotoMimeType = file.type;
 
-  const r = new FileReader();
-  r.onload = function(e) {
-    fotoBase64 = e.target.result.split(',')[1];
-    document.getElementById('fotoImg').src = e.target.result;
-    document.getElementById('fotoPreview').style.display = 'block';
-    document.getElementById('fotoPlaceholder').style.display = 'none';
-    document.getElementById('fotoNama').textContent = '✅ ' + file.name;
-    document.getElementById('fotoNama').style.display = 'block';
-    document.getElementById('fotoUploadArea').style.borderColor = 'var(--success)';
-  };
-  r.readAsDataURL(file);
-}
-
-async function uploadFotoDrive(namaFile) {
-  if (!fotoFile || !fotoBase64) return { link: '', fileId: '' };
-  try {
-    const CHUNK_SIZE = 150000; // 150KB per chunk (safe limit)
-    const totalChunks = Math.ceil(fotoBase64.length / CHUNK_SIZE);
-    const uploadId = 'upload_' + Date.now();
-
-    // Kirim chunk satu per satu
-    for (let i = 0; i < totalChunks; i++) {
-      const chunk = fotoBase64.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-      const isLast = (i === totalChunks - 1);
-
-      const res = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-          action: 'uploadChunk',
-          uploadId: uploadId,
-          namaFile: namaFile,
-          chunk: chunk,
-          chunkIndex: i,
-          totalChunks: totalChunks,
-          mimeType: fotoFile.type,
-          isLast: isLast
-        })
-      });
-
-      // Update progress
-      const pct = Math.round(((i + 1) / totalChunks) * 60);
-      if (typeof setLoading === 'function') {
-        setLoading(
-          '📤 Mengupload foto...',
-          `Chunk ${i+1} dari ${totalChunks}`,
-          pct,
-          'Langkah 1 dari 2'
-        );
-      }
-    }
-
-    // Karena no-cors kita tidak bisa baca response
-    // Link akan dibuat dari nama file
-    return { link: 'pending', fileId: uploadId };
-
-  } catch(e) {
-    console.error('uploadFoto error:', e);
-    return { link: '', fileId: '' };
-  }
-}
 
 // ============================================================
 // NAVIGATION
