@@ -138,8 +138,15 @@
 </div>
 
 <div class="loading-overlay" id="loadingOverlay">
-  <div class="spinner"></div>
-  <p style="color:#666;font-size:14px;">Menyimpan data...</p>
+  <div style="background:white;border-radius:20px;padding:32px 28px;text-align:center;max-width:280px;box-shadow:0 8px 32px rgba(0,0,0,0.12);">
+    <div class="spinner" style="margin:0 auto 16px"></div>
+    <p id="loadingTitle" style="color:var(--dark);font-size:16px;font-weight:700;margin-bottom:6px">Memproses...</p>
+    <p id="loadingSubtitle" style="color:var(--gray);font-size:13px;line-height:1.5">Mohon tunggu sebentar</p>
+    <div style="background:var(--gray-light);border-radius:8px;height:6px;margin-top:16px;overflow:hidden">
+      <div id="loadingBar" style="background:var(--red);height:100%;width:0%;transition:width 0.5s ease;border-radius:8px"></div>
+    </div>
+    <p id="loadingStep" style="color:#aaa;font-size:11px;margin-top:8px">Langkah 1 dari 2</p>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -361,7 +368,7 @@
 // ============================================================
 // GANTI INI DENGAN URL APPS SCRIPT KAMU
 // ============================================================
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby3wnXhqAYhy_ET7bDLsuVuUVrjFVr54MrDZzAxGTW9whpUqqxemh1Vqb_PGSlj3fZ2/exec';
+const APPS_SCRIPT_URL = 'GANTI_DENGAN_URL_APPS_SCRIPT_KAMU';
 
 // ============================================================
 // DATA KAMUS STATIC
@@ -528,55 +535,33 @@ function previewFoto(input) {
 }
 
 async function uploadFotoDrive(namaFile) {
-  if (!fotoFile) return '';
+  if (!fotoFile) return { link: '', fileId: '' };
   try {
-    // Step 1: Initiate resumable upload
     const metadata = {
       name: namaFile,
       parents: [DRIVE_FOLDER_ID],
       mimeType: fotoFile.type
     };
 
-    const initRes = await fetch(
-      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&key=' + DRIVE_API_KEY,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'multipart/related; boundary=boundary123' },
-        body: '--boundary123
-Content-Type: application/json
-
-' +
-              JSON.stringify(metadata) +
-              '
---boundary123
-Content-Type: ' + fotoFile.type + '
-
-' +
-              await fotoFile.text() + '
---boundary123--'
-      }
-    );
-
-    // Gunakan FormData multipart
     const form = new FormData();
     form.append('metadata', new Blob([JSON.stringify(metadata)], {type:'application/json'}));
     form.append('file', fotoFile);
 
     const res = await fetch(
-      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&key=' + DRIVE_API_KEY,
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id&key=' + DRIVE_API_KEY,
       { method: 'POST', body: form }
     );
 
     if (!res.ok) {
       const err = await res.json();
       console.error('Drive upload error:', err);
-      return '';
+      return { link: '', fileId: '' };
     }
 
     const result = await res.json();
     const fileId = result.id;
 
-    // Step 2: Set permission public
+    // Set permission public
     await fetch(
       'https://www.googleapis.com/drive/v3/files/' + fileId + '/permissions?key=' + DRIVE_API_KEY,
       {
@@ -586,10 +571,13 @@ Content-Type: ' + fotoFile.type + '
       }
     );
 
-    return 'https://drive.google.com/uc?export=view&id=' + fileId;
+    return {
+      link: 'https://drive.google.com/uc?export=view&id=' + fileId,
+      fileId: fileId
+    };
   } catch(e) {
     console.error('uploadFotoDrive error:', e);
-    return '';
+    return { link: '', fileId: '' };
   }
 }
 
@@ -666,13 +654,23 @@ function goToPreview() {
 async function submitForm() {
   document.getElementById('loadingOverlay').classList.add('show');
 
+  // Update loading UI
+  function setLoading(title, subtitle, pct, step) {
+    document.getElementById('loadingTitle').textContent = title;
+    document.getElementById('loadingSubtitle').textContent = subtitle;
+    document.getElementById('loadingBar').style.width = pct + '%';
+    document.getElementById('loadingStep').textContent = step;
+  }
+
   // Upload foto ke Drive dulu dengan nama sementara (romaji + timestamp)
-  showToast('📤 Mengupload foto...');
+  setLoading('📤 Mengupload foto...', 'Foto sedang diunggah ke server', 30, 'Langkah 1 dari 2');
   const romaji = document.getElementById('romaji').value.trim().replace(/\s+/g,'_') || 'kandidat';
   const namaTemp = romaji + '_' + Date.now() + (fotoMimeType === 'image/png' ? '.png' : '.jpg');
   const fotoResult = fotoFile ? await uploadFotoDrive(namaTemp) : { link: '', fileId: '' };
   const linkFoto = fotoResult.link;
   const fotoFileId = fotoResult.fileId;
+
+  setLoading('💾 Menyimpan data...', 'Data sedang disimpan ke database', 70, 'Langkah 2 dari 2');
 
   const data = {
     furigana:v('furigana'), romaji:v('romaji'), tanggalLahir:v('tanggalLahir'),
@@ -709,6 +707,8 @@ async function submitForm() {
   })
   .then(r => r.json())
   .then(result => {
+    setLoading('✅ Selesai!', 'Data berhasil disimpan', 100, 'Selesai');
+    setTimeout(() => {
     document.getElementById('loadingOverlay').classList.remove('show');
     if (result.success) {
       document.querySelector('.container').style.display = 'none';
@@ -724,6 +724,7 @@ async function submitForm() {
     } else {
       showToast('Gagal: ' + result.error, true);
     }
+    }, 500); // end setTimeout
   })
   .catch(() => {
     document.getElementById('loadingOverlay').classList.remove('show');
