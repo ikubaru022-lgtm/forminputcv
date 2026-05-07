@@ -368,7 +368,7 @@
 // ============================================================
 // GANTI INI DENGAN URL APPS SCRIPT KAMU
 // ============================================================
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby3wnXhqAYhy_ET7bDLsuVuUVrjFVr54MrDZzAxGTW9whpUqqxemh1Vqb_PGSlj3fZ2/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwoDSZ7nn60E8PdrfYG-lUfYfltSbeOZQdgsEr36NuDOYITIGeVyfpd1oGsjIJvsPk/exec';
 
 // ============================================================
 // DATA KAMUS STATIC
@@ -535,48 +535,51 @@ function previewFoto(input) {
 }
 
 async function uploadFotoDrive(namaFile) {
-  if (!fotoFile) return { link: '', fileId: '' };
+  if (!fotoFile || !fotoBase64) return { link: '', fileId: '' };
   try {
-    const metadata = {
-      name: namaFile,
-      parents: [DRIVE_FOLDER_ID],
-      mimeType: fotoFile.type
-    };
+    const CHUNK_SIZE = 150000; // 150KB per chunk (safe limit)
+    const totalChunks = Math.ceil(fotoBase64.length / CHUNK_SIZE);
+    const uploadId = 'upload_' + Date.now();
 
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify(metadata)], {type:'application/json'}));
-    form.append('file', fotoFile);
+    // Kirim chunk satu per satu
+    for (let i = 0; i < totalChunks; i++) {
+      const chunk = fotoBase64.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+      const isLast = (i === totalChunks - 1);
 
-    const res = await fetch(
-      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id&key=' + DRIVE_API_KEY,
-      { method: 'POST', body: form }
-    );
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'uploadChunk',
+          uploadId: uploadId,
+          namaFile: namaFile,
+          chunk: chunk,
+          chunkIndex: i,
+          totalChunks: totalChunks,
+          mimeType: fotoFile.type,
+          isLast: isLast
+        })
+      });
 
-    if (!res.ok) {
-      const err = await res.json();
-      console.error('Drive upload error:', err);
-      return { link: '', fileId: '' };
+      // Update progress
+      const pct = Math.round(((i + 1) / totalChunks) * 60);
+      if (typeof setLoading === 'function') {
+        setLoading(
+          '📤 Mengupload foto...',
+          `Chunk ${i+1} dari ${totalChunks}`,
+          pct,
+          'Langkah 1 dari 2'
+        );
+      }
     }
 
-    const result = await res.json();
-    const fileId = result.id;
+    // Karena no-cors kita tidak bisa baca response
+    // Link akan dibuat dari nama file
+    return { link: 'pending', fileId: uploadId };
 
-    // Set permission public
-    await fetch(
-      'https://www.googleapis.com/drive/v3/files/' + fileId + '/permissions?key=' + DRIVE_API_KEY,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: 'reader', type: 'anyone' })
-      }
-    );
-
-    return {
-      link: 'https://drive.google.com/uc?export=view&id=' + fileId,
-      fileId: fileId
-    };
   } catch(e) {
-    console.error('uploadFotoDrive error:', e);
+    console.error('uploadFoto error:', e);
     return { link: '', fileId: '' };
   }
 }
@@ -668,7 +671,7 @@ async function submitForm() {
   const namaTemp = romaji + '_' + Date.now() + (fotoMimeType === 'image/png' ? '.png' : '.jpg');
   const fotoResult = fotoFile ? await uploadFotoDrive(namaTemp) : { link: '', fileId: '' };
   const linkFoto = fotoResult.link;
-  const fotoFileId = fotoResult.fileId;
+  const fotoUploadId = fotoResult.fileId || '';
 
   setLoading('💾 Menyimpan data...', 'Data sedang disimpan ke database', 70, 'Langkah 2 dari 2');
 
@@ -686,8 +689,8 @@ async function submitForm() {
     deskripsiDiri:v('deskripsiDiri'), jumlahTabungan:v('jumlahTabungan'),
     fotoBase64:'',
     fotoMimeType:fotoMimeType||'image/jpeg',
-    linkFotoDrive: linkFoto,
-    fotoFileId: fotoFileId,
+    linkFotoDrive: '',
+    fotoUploadId: fotoResult.fileId || '',
   };
 
   for(let i=1;i<=4;i++){
