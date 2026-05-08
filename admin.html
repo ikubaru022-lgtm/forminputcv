@@ -258,14 +258,10 @@ async function cariKandidat() {
   const input = document.getElementById('noIdInput').value.trim();
   if (!input) { showStatus('Masukkan nomor ID kandidat!', 'error'); return; }
 
- const noIds = input.split(',').map(s => {
-  s = s.trim();
-  // Kalau hanya angka, tambah "KD-" di depan
-  if (/^\d+$/.test(s)) s = 'KD-' + s;
-  // Kalau huruf besar tanpa KD-, tambah KD-
-  if (/^[0-9]+$/i.test(s)) s = 'KD-' + s;
-  return s;
-}).filter(s => s);
+  const noIds = input.split(',').map(s => s.trim()).filter(s => s);
+  setLoading(true);
+  document.getElementById('kandidatList').innerHTML = '';
+  document.getElementById('previewSection').style.display = 'none';
 
   try {
     let results = [];
@@ -356,6 +352,53 @@ function renderKandidatList() {
 }
 
 // ============================================================
+// FORMAT HELPERS
+// ============================================================
+function formatTgl(val) {
+  if (!val) return '';
+  // Handle ISO date: 2007-05-01T17:00:00.000Z
+  const d = new Date(val);
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}年${m}月${day}日`;
+  }
+  return val;
+}
+
+function formatBulan(val) {
+  if (!val) return '';
+  // Handle ISO date
+  const d = new Date(val);
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    return `${y}年${m}月`;
+  }
+  // Already formatted like 2022年05月
+  return val;
+}
+
+function hitungLamaKerja(masuk, keluar) {
+  if (!masuk || !keluar) return '';
+  const d1 = new Date(masuk);
+  const d2 = new Date(keluar);
+  if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return '';
+  const totalMonths = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+  const years  = Math.floor(Math.abs(totalMonths) / 12);
+  const months = Math.abs(totalMonths) % 12;
+  return years > 0 ? `${years}年${months}ヵ月` : `${months}ヵ月`;
+}
+
+function formatGajiDisplay(val) {
+  if (!val) return '';
+  const num = parseInt(String(val).replace(/[^0-9]/g,''));
+  if (isNaN(num)) return val;
+  return 'Rp' + num.toLocaleString('en-US');
+}
+
+// ============================================================
 // GENERATE RIREKISHO HTML
 // ============================================================
 function generateRirekishoHTML(k, nomor) {
@@ -368,8 +411,9 @@ function generateRirekishoHTML(k, nomor) {
   while (kerja.length < 5) kerja.push({});
   while (kel.length < 8) kel.push({});
 
-  const fotoHtml = k.linkFoto
-    ? `<img src="${k.linkFoto}" style="width:100%;height:100%;object-fit:cover">`
+  const fotoUrl = k.linkFoto || '';
+  const fotoHtml = fotoUrl
+    ? `<img src="${fotoUrl}" style="width:100%;height:100%;object-fit:cover" crossorigin="anonymous" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><div style="display:none;text-align:center;padding:10px;color:#aaa;font-size:8pt">写真</div>`
     : '<div style="text-align:center;padding:20px;color:#aaa;font-size:10pt">写真</div>';
 
   return `
@@ -411,7 +455,7 @@ function generateRirekishoHTML(k, nomor) {
       </tr>
       <tr>
         <td class="label-cell" colspan="2">生年月日</td>
-        <td colspan="2">${k.tanggalLahir||''}</td>
+        <td colspan="2">${formatTgl(k.tanggalLahir)}</td>
         <td class="label-cell">年齢</td>
         <td>${k.usia||''}</td>
         <td class="label-cell">喫煙</td>
@@ -461,8 +505,8 @@ function generateRirekishoHTML(k, nomor) {
       </tr>
       ${pend.map(p => `
       <tr style="height:18px">
-        <td style="width:50px">${p.masuk||''}</td>
-        <td style="width:50px">${p.lulus ? '‐ '+p.lulus : ''}</td>
+        <td style="width:50px">${formatBulan(p.masuk)}</td>
+        <td style="width:50px">${p.lulus ? '‐ '+formatBulan(p.lulus) : ''}</td>
         <td>${p.nama||''}</td>
         <td style="text-align:center">${p.jenjang||''}</td>
         <td>${p.jurusan||''}</td>
@@ -481,12 +525,12 @@ function generateRirekishoHTML(k, nomor) {
       </tr>
       ${kerja.map(w => `
       <tr style="height:18px">
-        <td style="width:50px">${w.masuk||''}</td>
-        <td style="width:50px">${w.keluar ? '‐ '+w.keluar : ''}</td>
+        <td style="width:50px">${formatBulan(w.masuk)}</td>
+        <td style="width:50px">${w.keluar ? '‐ '+formatBulan(w.keluar) : ''}</td>
         <td>${w.nama||''}</td>
         <td style="text-align:center">${w.bidang||''}</td>
         <td style="text-align:center">${w.profesi||''}</td>
-        <td style="text-align:center">${w.lamaKerja||''}</td>
+        <td style="text-align:center">${w.lamaKerja || hitungLamaKerja(w.masuk, w.keluar)}</td>
       </tr>`).join('')}
     </table>
 
@@ -514,7 +558,7 @@ function generateRirekishoHTML(k, nomor) {
         <td>${f.nama||''}</td>
         <td style="text-align:center">${f.usia||''}</td>
         <td style="text-align:center">${f.pekerjaan||''}</td>
-        <td style="text-align:right;font-size:7pt">${f.gaji||''}</td>
+        <td style="text-align:right;font-size:7pt">${formatGajiDisplay(f.gaji)}</td>
       </tr>`).join('')}
       <tr style="height:24px">
         <td class="label-cell">目標貯金額</td>
