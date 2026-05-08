@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>履歴書 Generator — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Serif+JP:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --ink: #1a1a2e;
+  --red: #C0392B;
+  --red-light: #e74c3c;
+  --gold: #d4a017;
+  --bg: #f8f6f1;
+  --white: #ffffff;
+  --gray: #6c757d;
+  --border: #ddd;
+  --shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; }
+
+/* LOGIN */
+#loginScreen {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+}
+.login-card {
+  background: white; border-radius: 20px; padding: 48px 40px; width: 360px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: center;
+}
+.login-logo { font-family: 'Noto Serif JP', serif; font-size: 28px; color: var(--red); margin-bottom: 8px; font-weight: 700; }
+.login-sub { font-size: 12px; color: var(--gray); margin-bottom: 32px; letter-spacing: 2px; text-transform: uppercase; }
+.login-input { width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: 10px; font-size: 16px; font-family: 'Noto Sans JP', sans-serif; margin-bottom: 16px; transition: border-color 0.2s; }
+.login-input:focus { outline: none; border-color: var(--red); }
+.login-btn { width: 100%; padding: 14px; background: var(--red); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; font-family: 'Noto Sans JP', sans-serif; transition: all 0.2s; }
+.login-btn:hover { background: var(--red-light); transform: translateY(-1px); }
+.login-error { color: var(--red); font-size: 13px; margin-top: 8px; display: none; }
+
+/* MAIN APP */
+#mainApp { display: none; }
+
+/* HEADER */
+.app-header {
+  background: var(--ink); color: white; padding: 16px 32px;
+  display: flex; align-items: center; justify-content: space-between;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+}
+.app-header h1 { font-family: 'Noto Serif JP', serif; font-size: 20px; font-weight: 700; }
+.app-header h1 span { color: var(--gold); }
+.logout-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-family: 'Noto Sans JP', sans-serif; transition: all 0.2s; }
+.logout-btn:hover { background: rgba(255,255,255,0.2); }
+
+/* CONTENT */
+.content { max-width: 900px; margin: 0 auto; padding: 32px 20px; }
+
+/* INPUT SECTION */
+.input-card {
+  background: white; border-radius: 16px; padding: 28px; box-shadow: var(--shadow); margin-bottom: 24px;
+}
+.input-card h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid var(--bg); display: flex; align-items: center; gap: 8px; }
+.input-row { display: flex; gap: 12px; margin-bottom: 12px; }
+.input-field { flex: 1; padding: 12px 16px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 14px; font-family: 'Noto Sans JP', sans-serif; transition: border-color 0.2s; }
+.input-field:focus { outline: none; border-color: var(--red); }
+.textarea-field { width: 100%; padding: 12px 16px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 14px; font-family: 'Noto Sans JP', sans-serif; resize: vertical; min-height: 80px; }
+.textarea-field:focus { outline: none; border-color: var(--red); }
+
+.btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn { padding: 12px 24px; border-radius: 10px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'Noto Sans JP', sans-serif; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--red); color: white; }
+.btn-primary:hover { background: var(--red-light); transform: translateY(-1px); }
+.btn-secondary { background: var(--ink); color: white; }
+.btn-secondary:hover { background: #2d2d4e; transform: translateY(-1px); }
+.btn-success { background: #27ae60; color: white; }
+.btn-success:hover { background: #229954; transform: translateY(-1px); }
+.btn-outline { background: white; border: 2px solid var(--border); color: var(--gray); }
+.btn-outline:hover { border-color: var(--ink); color: var(--ink); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* STATUS */
+.status-bar { background: #fff3cd; border: 1px solid #ffc107; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #856404; margin-bottom: 16px; display: none; }
+.status-bar.success { background: #d4edda; border-color: #28a745; color: #155724; }
+.status-bar.error { background: #f8d7da; border-color: #dc3545; color: #721c24; }
+
+/* KANDIDAT LIST */
+.kandidat-grid { display: grid; gap: 16px; }
+.kandidat-card {
+  background: white; border-radius: 12px; padding: 20px; box-shadow: var(--shadow);
+  display: grid; grid-template-columns: 80px 1fr auto; gap: 16px; align-items: start;
+  border-left: 4px solid var(--red);
+}
+.kandidat-foto { width: 80px; height: 100px; object-fit: cover; border-radius: 8px; border: 2px solid var(--border); background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 32px; color: var(--gray); overflow: hidden; }
+.kandidat-foto img { width: 100%; height: 100%; object-fit: cover; }
+.kandidat-info h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.kandidat-info .romaji { font-size: 13px; color: var(--gray); margin-bottom: 8px; }
+.kandidat-info .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.tag-blue { background: #e8f0fe; color: #1a73e8; }
+.tag-green { background: #e6f4ea; color: #1e8e3e; }
+.tag-gray { background: var(--bg); color: var(--gray); }
+.kandidat-actions { display: flex; flex-direction: column; gap: 8px; }
+
+/* RIREKISHO PREVIEW */
+#previewSection { display: none; }
+.preview-controls { background: white; border-radius: 16px; padding: 20px 28px; box-shadow: var(--shadow); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.preview-controls h2 { font-size: 16px; font-weight: 700; }
+
+/* RIREKISHO CSS - format persis seperti PDF */
+.rirekisho-wrapper { background: white; border-radius: 16px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; overflow-x: auto; }
+.rirekisho {
+  width: 210mm; min-height: 297mm; background: white; padding: 8mm;
+  font-family: 'Noto Sans JP', sans-serif; font-size: 9pt; color: black;
+  border: 1px solid #ccc; margin: 0 auto;
+}
+.rirekisho table { width: 100%; border-collapse: collapse; }
+.rirekisho td, .rirekisho th {
+  border: 1px solid #333; padding: 2px 4px; vertical-align: middle;
+  font-size: 8pt;
+}
+.rirekisho .header-title {
+  text-align: center; font-size: 18pt; font-family: 'Noto Serif JP', serif;
+  font-weight: 700; letter-spacing: 8px; padding: 4px 0 8px;
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+}
+.rirekisho .logo-placeholder {
+  width: 50px; height: 50px; border: 2px solid var(--red);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 8pt; color: var(--red); font-weight: 700;
+}
+.rirekisho .section-header { background: #e8e8e8; text-align: center; font-weight: 700; font-size: 10pt; }
+.rirekisho .label-cell { background: #f5f5f5; font-weight: 600; text-align: center; white-space: nowrap; }
+.rirekisho .foto-cell { width: 30mm; height: 35mm; border: 1px solid #333; text-align: center; vertical-align: middle; }
+.rirekisho .foto-cell img { width: 100%; height: 100%; object-fit: cover; }
+.no-circle { width: 28px; height: 28px; border: 2px solid #333; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13pt; font-weight: 700; }
+
+/* LOADING */
+.loading-spinner { display: none; text-align: center; padding: 40px; }
+.spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top-color: var(--red); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 600px) {
+  .kandidat-card { grid-template-columns: 60px 1fr; }
+  .kandidat-actions { grid-column: 1 / -1; flex-direction: row; }
+  .content { padding: 16px 12px; }
+  .rirekisho { width: 100%; font-size: 7pt; }
+}
+
+@media print {
+  body { background: white; }
+  .app-header, .input-card, .preview-controls, .kandidat-actions { display: none !important; }
+  .rirekisho-wrapper { box-shadow: none; padding: 0; border-radius: 0; }
+  .rirekisho { border: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">履歴書</div>
+    <div class="login-sub">Generator — Admin Panel</div>
+    <input type="password" class="login-input" id="loginPass" placeholder="Password" onkeypress="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">ログイン / Login</button>
+    <div class="login-error" id="loginError">Password salah!</div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="mainApp">
+  <div class="app-header">
+    <h1>履歴書 <span>Generator</span></h1>
+    <button class="logout-btn" onclick="doLogout()">Logout</button>
+  </div>
+
+  <div class="content">
+    <!-- INPUT SECTION -->
+    <div class="input-card">
+      <h2>🔍 Cari Kandidat</h2>
+      <div class="input-row">
+        <input type="text" class="input-field" id="noIdInput" placeholder="Nomor ID: KD-210 (pisahkan koma untuk batch: KD-210, KD-211, KD-212)" onkeypress="if(event.key==='Enter')cariKandidat()">
+        <button class="btn btn-primary" onclick="cariKandidat()" id="cariBtn">🔍 Cari</button>
+      </div>
+      <div style="font-size:12px;color:var(--gray);margin-top:4px">
+        Contoh batch: <strong>KD-210, KD-211, KD-212</strong> — akan generate semua sekaligus
+      </div>
+    </div>
+
+    <!-- STATUS -->
+    <div class="status-bar" id="statusBar"></div>
+    <div class="loading-spinner" id="loadingSpinner">
+      <div class="spinner"></div>
+      <p style="color:var(--gray);font-size:14px">Mengambil data...</p>
+    </div>
+
+    <!-- KANDIDAT LIST -->
+    <div id="kandidatList" class="kandidat-grid"></div>
+
+    <!-- PREVIEW SECTION -->
+    <div id="previewSection">
+      <div class="preview-controls">
+        <h2>📄 Preview Rirekisho</h2>
+        <div class="btn-group">
+          <button class="btn btn-outline" onclick="document.getElementById('previewSection').style.display='none'">✕ Tutup</button>
+          <button class="btn btn-success" onclick="downloadExcel()">📊 Download Excel</button>
+          <button class="btn btn-primary" onclick="downloadPDF()">📄 Download PDF</button>
+          <button class="btn btn-secondary" onclick="window.print()">🖨️ Print</button>
+        </div>
+      </div>
+      <div id="rirekishoContainer"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzthA5ZIXUPbAKuzM2ZTL2K-qwlg89GXFFeKzp6S5Jy6mj1L6J6oAnNhWqYhWZumhzM/exec';
+const ADMIN_PASSWORD = 'actec2024'; // GANTI PASSWORD INI!
+const TANGGAL_SEKARANG = new Date().toLocaleDateString('ja-JP', {year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'年').replace(/(\d+)$/, '$1日').replace(/年(\d+)年/, '年$1月');
+
+// ============================================================
+// LOGIN
+// ============================================================
+function doLogin() {
+  const pass = document.getElementById('loginPass').value;
+  if (pass === ADMIN_PASSWORD) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'block';
+    sessionStorage.setItem('admin_logged', '1');
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+    document.getElementById('loginPass').value = '';
+  }
+}
+
+function doLogout() {
+  sessionStorage.removeItem('admin_logged');
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('mainApp').style.display = 'none';
+}
+
+// Check session
+if (sessionStorage.getItem('admin_logged')) {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+}
+
+// ============================================================
+// CARI KANDIDAT
+// ============================================================
+let kandidatData = [];
+
+async function cariKandidat() {
+  const input = document.getElementById('noIdInput').value.trim();
+  if (!input) { showStatus('Masukkan nomor ID kandidat!', 'error'); return; }
+
+  const noIds = input.split(',').map(s => s.trim()).filter(s => s);
+  setLoading(true);
+  document.getElementById('kandidatList').innerHTML = '';
+  document.getElementById('previewSection').style.display = 'none';
+
+  try {
+    let results = [];
+    if (noIds.length === 1) {
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'getKandidat', noId: noIds[0] })
+      });
+      const data = await res.json();
+      results = [data];
+    } else {
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'getKandidatBatch', noIds: noIds })
+      });
+      const data = await res.json();
+      results = data.kandidat || [];
+    }
+
+    kandidatData = results.filter(k => k.success);
+    const errors = results.filter(k => !k.success);
+
+    setLoading(false);
+
+    if (errors.length > 0) {
+      showStatus('⚠️ Tidak ditemukan: ' + errors.map(e => e.error).join(', '), 'warning');
+    }
+
+    if (kandidatData.length === 0) {
+      showStatus('Kandidat tidak ditemukan!', 'error');
+      return;
+    }
+
+    showStatus(`✅ ${kandidatData.length} kandidat ditemukan!`, 'success');
+    renderKandidatList();
+
+  } catch(e) {
+    setLoading(false);
+    showStatus('Error: ' + e.message, 'error');
+  }
+}
+
+function renderKandidatList() {
+  const container = document.getElementById('kandidatList');
+  container.innerHTML = '';
+
+  kandidatData.forEach((k, idx) => {
+    const card = document.createElement('div');
+    card.className = 'kandidat-card';
+
+    const fotoHtml = k.linkFoto
+      ? `<div class="kandidat-foto"><img src="${k.linkFoto}" alt="foto" onerror="this.parentElement.innerHTML='👤'"></div>`
+      : `<div class="kandidat-foto">👤</div>`;
+
+    card.innerHTML = `
+      ${fotoHtml}
+      <div class="kandidat-info">
+        <h3>${k.furigana || '—'}</h3>
+        <div class="romaji">${k.romaji || '—'}</div>
+        <div class="tags">
+          <span class="tag tag-blue">${k.noId}</span>
+          <span class="tag tag-green">${k.gender || '—'}</span>
+          <span class="tag tag-gray">${k.usia || '—'}歳</span>
+          <span class="tag tag-gray">${k.tanggalLahir || '—'}</span>
+        </div>
+      </div>
+      <div class="kandidat-actions">
+        <button class="btn btn-primary" onclick="previewSatu(${idx})" style="font-size:12px;padding:8px 14px">👁 Preview</button>
+        <button class="btn btn-success" onclick="downloadExcelSatu(${idx})" style="font-size:12px;padding:8px 14px">📊 Excel</button>
+        <button class="btn btn-secondary" onclick="downloadPDFSatu(${idx})" style="font-size:12px;padding:8px 14px">📄 PDF</button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  // Tombol batch
+  if (kandidatData.length > 1) {
+    const batchDiv = document.createElement('div');
+    batchDiv.style.cssText = 'background:white;border-radius:12px;padding:16px 20px;box-shadow:var(--shadow);display:flex;gap:12px;align-items:center;flex-wrap:wrap;';
+    batchDiv.innerHTML = `
+      <span style="font-weight:700;font-size:14px">📦 Batch (${kandidatData.length} kandidat):</span>
+      <button class="btn btn-primary" onclick="previewBatch()">👁 Preview Semua</button>
+      <button class="btn btn-success" onclick="downloadExcel()">📊 Download Excel (1 file)</button>
+      <button class="btn btn-secondary" onclick="downloadPDF()">📄 Download PDF (semua)</button>
+    `;
+    container.appendChild(batchDiv);
+  }
+}
+
+// ============================================================
+// GENERATE RIREKISHO HTML
+// ============================================================
+function generateRirekishoHTML(k, nomor) {
+  const pend = k.pendidikan || [];
+  const kerja = k.pekerjaan || [];
+  const kel = k.keluarga || [];
+
+  // Pad arrays
+  while (pend.length < 5) pend.push({});
+  while (kerja.length < 5) kerja.push({});
+  while (kel.length < 8) kel.push({});
+
+  const fotoHtml = k.linkFoto
+    ? `<img src="${k.linkFoto}" style="width:100%;height:100%;object-fit:cover">`
+    : '<div style="text-align:center;padding:20px;color:#aaa;font-size:10pt">写真</div>';
+
+  return `
+  <div class="rirekisho" id="rirekisho-${nomor}">
+    <!-- HEADER -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="font-size:8pt;color:#666">${TANGGAL_SEKARANG}</div>
+      <div class="header-title">
+        履　歴　書
+        <div class="logo-placeholder">AcTec</div>
+      </div>
+      <div style="width:60px"></div>
+    </div>
+
+    <!-- DATA DIRI -->
+    <table style="margin-bottom:4px">
+      <tr>
+        <td class="label-cell" rowspan="2" style="width:40px">氏名</td>
+        <td class="label-cell" style="width:40px">ふりがな</td>
+        <td colspan="2" style="width:120px">${k.furigana||''}</td>
+        <td class="label-cell" style="width:30px">性別</td>
+        <td style="width:25px">${k.gender||''}</td>
+        <td class="label-cell" style="width:25px">婚歴</td>
+        <td style="width:25px">${k.status||''}</td>
+        <td class="foto-cell" rowspan="8">
+          <div style="display:flex;align-items:center;justify-content:center;height:100%">
+            <div class="no-circle">${nomor}</div>
+          </div>
+        </td>
+        <td class="foto-cell" rowspan="8">${fotoHtml}</td>
+      </tr>
+      <tr>
+        <td class="label-cell">ローマ字</td>
+        <td colspan="2">${k.romaji||''}</td>
+        <td class="label-cell">血 液 型</td>
+        <td>${k.golonganDarah||''}</td>
+        <td class="label-cell">飲酒</td>
+        <td>${k.alkohol||''}</td>
+      </tr>
+      <tr>
+        <td class="label-cell" colspan="2">生年月日</td>
+        <td colspan="2">${k.tanggalLahir||''}</td>
+        <td class="label-cell">年齢</td>
+        <td>${k.usia||''}</td>
+        <td class="label-cell">喫煙</td>
+        <td>${k.rokok||''}</td>
+      </tr>
+      <tr>
+        <td class="label-cell">身長</td>
+        <td class="label-cell">体重</td>
+        <td>${k.tinggi||''} cm</td>
+        <td>${k.berat||''} kg</td>
+        <td class="label-cell">配偶者</td>
+        <td>${k.pasangan||''}</td>
+        <td class="label-cell">刺青</td>
+        <td>${k.tato||''}</td>
+      </tr>
+      <tr>
+        <td class="label-cell" colspan="2">視　力</td>
+        <td>左 ${k.mataKiri||''}</td>
+        <td>右 ${k.mataKanan||''}</td>
+        <td class="label-cell" colspan="2">重病</td>
+        <td colspan="2">${k.penyakitSerius||''}</td>
+      </tr>
+      <tr>
+        <td class="label-cell" colspan="2">出生地</td>
+        <td>${k.tempatLahir||''}</td>
+        <td class="label-cell">宗教</td>
+        <td colspan="2">${k.agama||''}</td>
+        <td class="label-cell">日本渡航歴</td>
+        <td>${k.riwayatJepang||''}</td>
+      </tr>
+      <tr>
+        <td class="label-cell" colspan="2">現地住所</td>
+        <td colspan="4">${k.alamat||''}</td>
+        <td class="label-cell">面接参加回数</td>
+        <td>${k.jumlahInterview||'0'}回</td>
+      </tr>
+    </table>
+
+    <!-- PENDIDIKAN -->
+    <table style="margin-bottom:4px">
+      <tr><td colspan="5" class="section-header">学　歴</td></tr>
+      <tr>
+        <th class="label-cell" colspan="2">年－月</th>
+        <th class="label-cell" style="width:180px">学　校　名</th>
+        <th class="label-cell" style="width:60px">学校制度</th>
+        <th class="label-cell" style="width:60px">専　攻</th>
+      </tr>
+      ${pend.map(p => `
+      <tr style="height:18px">
+        <td style="width:50px">${p.masuk||''}</td>
+        <td style="width:50px">${p.lulus ? '‐ '+p.lulus : ''}</td>
+        <td>${p.nama||''}</td>
+        <td style="text-align:center">${p.jenjang||''}</td>
+        <td>${p.jurusan||''}</td>
+      </tr>`).join('')}
+    </table>
+
+    <!-- PEKERJAAN -->
+    <table style="margin-bottom:4px">
+      <tr><td colspan="6" class="section-header">職　歴</td></tr>
+      <tr>
+        <th class="label-cell" colspan="2">年－月</th>
+        <th class="label-cell">会　社　名</th>
+        <th class="label-cell" style="width:50px">職業</th>
+        <th class="label-cell" style="width:50px">職種</th>
+        <th class="label-cell" style="width:40px">年 数</th>
+      </tr>
+      ${kerja.map(w => `
+      <tr style="height:18px">
+        <td style="width:50px">${w.masuk||''}</td>
+        <td style="width:50px">${w.keluar ? '‐ '+w.keluar : ''}</td>
+        <td>${w.nama||''}</td>
+        <td style="text-align:center">${w.bidang||''}</td>
+        <td style="text-align:center">${w.profesi||''}</td>
+        <td style="text-align:center">${w.lamaKerja||''}</td>
+      </tr>`).join('')}
+    </table>
+
+    <!-- KELUARGA + HOBI + SELF PR -->
+    <table>
+      <tr>
+        <td colspan="4" class="section-header">家　族　構　成</td>
+        <td colspan="2" class="section-header">趣味</td>
+      </tr>
+      <tr>
+        <th class="label-cell" style="width:30px">本人との関係</th>
+        <th class="label-cell" style="width:80px">姓　名</th>
+        <th class="label-cell" style="width:25px">年齢</th>
+        <th class="label-cell" style="width:50px">職業</th>
+        <th class="label-cell" style="width:50px">給料</th>
+        <td rowspan="${kel.length + 3}" style="vertical-align:top;padding:4px">
+          <div style="margin-bottom:4px">${k.hobi||''}</div>
+          <div style="font-size:8pt;color:#888;border-top:1px solid #ddd;padding-top:4px;margin-top:4px">自己PR</div>
+          <div style="font-size:8pt;margin-top:4px">${k.deskripsiDiri||''}</div>
+        </td>
+      </tr>
+      ${kel.map(f => `
+      <tr style="height:18px">
+        <td style="text-align:center">${f.hubungan||''}</td>
+        <td>${f.nama||''}</td>
+        <td style="text-align:center">${f.usia||''}</td>
+        <td style="text-align:center">${f.pekerjaan||''}</td>
+        <td style="text-align:right;font-size:7pt">${f.gaji||''}</td>
+      </tr>`).join('')}
+      <tr style="height:24px">
+        <td class="label-cell">目標貯金額</td>
+        <td colspan="3">${k.tabungan||''}</td>
+        <td></td>
+      </tr>
+      <tr style="height:24px">
+        <td class="label-cell">先生コメント</td>
+        <td colspan="3">${k.komentarSensei||''}</td>
+        <td style="text-align:right;font-size:8pt">現在　${TANGGAL_SEKARANG}</td>
+      </tr>
+    </table>
+  </div>`;
+}
+
+// ============================================================
+// PREVIEW
+// ============================================================
+function previewSatu(idx) {
+  const html = generateRirekishoHTML(kandidatData[idx], idx + 1);
+  document.getElementById('rirekishoContainer').innerHTML = `<div class="rirekisho-wrapper">${html}</div>`;
+  document.getElementById('previewSection').style.display = 'block';
+  document.getElementById('previewSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+function previewBatch() {
+  let html = '';
+  kandidatData.forEach((k, i) => {
+    html += `<div class="rirekisho-wrapper">${generateRirekishoHTML(k, i + 1)}</div>`;
+  });
+  document.getElementById('rirekishoContainer').innerHTML = html;
+  document.getElementById('previewSection').style.display = 'block';
+  document.getElementById('previewSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ============================================================
+// DOWNLOAD PDF
+// ============================================================
+function downloadPDFSatu(idx) {
+  previewSatu(idx);
+  setTimeout(() => window.print(), 500);
+}
+
+function downloadPDF() {
+  previewBatch();
+  setTimeout(() => window.print(), 500);
+}
+
+// ============================================================
+// DOWNLOAD EXCEL
+// ============================================================
+function downloadExcelSatu(idx) {
+  generateExcel([kandidatData[idx]]);
+}
+
+function downloadExcel() {
+  generateExcel(kandidatData);
+}
+
+function generateExcel(data) {
+  const wb = XLSX.utils.book_new();
+
+  data.forEach((k, idx) => {
+    const rows = [];
+
+    // Header
+    rows.push(['履歴書']);
+    rows.push([]);
+    rows.push(['氏名（ふりがな）', k.furigana, '', '性別', k.gender, '婚歴', k.status]);
+    rows.push(['氏名（ローマ字）', k.romaji, '', '血液型', k.golonganDarah, '飲酒', k.alkohol]);
+    rows.push(['生年月日', k.tanggalLahir, '', '年齢', k.usia, '喫煙', k.rokok]);
+    rows.push(['身長', k.tinggi + ' cm', '体重', k.berat + ' kg', '配偶者', k.pasangan, '刺青', k.tato]);
+    rows.push(['視力', '左 ' + (k.mataKiri||''), '右 ' + (k.mataKanan||''), '', '重病', k.penyakitSerius]);
+    rows.push(['出生地', k.tempatLahir, '', '宗教', k.agama, '日本渡航歴', k.riwayatJepang]);
+    rows.push(['現地住所', k.alamat, '', '', '', '面接参加回数', (k.jumlahInterview||'0') + '回']);
+    rows.push([]);
+
+    // Pendidikan
+    rows.push(['学歴']);
+    rows.push(['年月（入学）', '年月（卒業）', '学校名', '学校制度', '専攻']);
+    (k.pendidikan || []).forEach(p => {
+      rows.push([p.masuk||'', p.lulus||'', p.nama||'', p.jenjang||'', p.jurusan||'']);
+    });
+    rows.push([]);
+
+    // Pekerjaan
+    rows.push(['職歴']);
+    rows.push(['年月（入社）', '年月（退社）', '会社名', '職業', '職種', '年数']);
+    (k.pekerjaan || []).forEach(w => {
+      rows.push([w.masuk||'', w.keluar||'', w.nama||'', w.bidang||'', w.profesi||'', w.lamaKerja||'']);
+    });
+    rows.push([]);
+
+    // Keluarga
+    rows.push(['家族構成']);
+    rows.push(['関係', '氏名', '年齢', '職業', '給料']);
+    (k.keluarga || []).forEach(f => {
+      rows.push([f.hubungan||'', f.nama||'', f.usia||'', f.pekerjaan||'', f.gaji||'']);
+    });
+    rows.push([]);
+
+    // Footer
+    rows.push(['趣味', k.hobi||'']);
+    rows.push(['自己PR', k.deskripsiDiri||'']);
+    rows.push(['目標貯金額', k.tabungan||'']);
+    rows.push(['先生コメント', k.komentarSensei||'']);
+    rows.push(['リンク写真', k.linkFoto||'']);
+    rows.push(['作成日', TANGGAL_SEKARANG]);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // Column widths
+    ws['!cols'] = [
+      {wch:20},{wch:25},{wch:25},{wch:15},{wch:15},{wch:15},{wch:15},{wch:15}
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, k.romaji ? k.romaji.substring(0,30) : 'KD-' + (idx+1));
+  });
+
+  // Summary sheet kalau batch
+  if (data.length > 1) {
+    const summary = [['No', 'NoId', 'Furigana', 'Romaji', 'Gender', 'Usia', 'Status', 'Tabungan', 'Link Foto']];
+    data.forEach((k, i) => {
+      summary.push([i+1, k.noId, k.furigana, k.romaji, k.gender, k.usia, k.status, k.tabungan, k.linkFoto]);
+    });
+    const wsSummary = XLSX.utils.aoa_to_sheet(summary);
+    wsSummary['!cols'] = [{wch:5},{wch:10},{wch:25},{wch:30},{wch:10},{wch:8},{wch:12},{wch:15},{wch:50}];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Daftar Kandidat');
+  }
+
+  const filename = data.length === 1
+    ? `Rirekisho_${data[0].romaji || data[0].noId}_${new Date().toISOString().slice(0,10)}.xlsx`
+    : `Rirekisho_Batch_${data.length}kandidat_${new Date().toISOString().slice(0,10)}.xlsx`;
+
+  XLSX.writeFile(wb, filename);
+  showStatus(`✅ Excel berhasil didownload: ${filename}`, 'success');
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function setLoading(show) {
+  document.getElementById('loadingSpinner').style.display = show ? 'block' : 'none';
+  document.getElementById('cariBtn').disabled = show;
+}
+
+function showStatus(msg, type='') {
+  const bar = document.getElementById('statusBar');
+  bar.textContent = msg;
+  bar.className = 'status-bar show ' + (type === 'success' ? 'success' : type === 'error' ? 'error' : '');
+  bar.style.display = 'block';
+  if (type === 'success') setTimeout(() => bar.style.display = 'none', 4000);
+}
+</script>
+</body>
+</html>
