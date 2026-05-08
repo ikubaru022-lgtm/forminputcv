@@ -374,7 +374,7 @@
 // ============================================================
 // GANTI INI DENGAN URL APPS SCRIPT KAMU
 // ============================================================
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdMRjXuJwlEmxUBvI_HMS3LmmmGXIncAp7zwNgKD4RITdbH4xSUwiWZamimvR-t_Y5/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzthA5ZIXUPbAKuzM2ZTL2K-qwlg89GXFFeKzp6S5Jy6mj1L6J6oAnNhWqYhWZumhzM/exec';
 
 // ============================================================
 // DATA KAMUS STATIC
@@ -670,11 +670,23 @@ function goToPreview() {
 async function submitForm() {
   document.getElementById('loadingOverlay').classList.add('show');
 
-  // Upload foto ke Cloudinary
+  // Step 1: Get NoId dari Apps Script dulu
+  showToast('⏳ Mempersiapkan...');
+  let noIdBrowser = '';
+  try {
+    const noIdRes = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'getNextNoId' })
+    });
+    const noIdData = await noIdRes.json();
+    noIdBrowser = noIdData.noId || ('KD-' + Date.now().toString().slice(-4));
+  } catch(e) {
+    noIdBrowser = 'KD-' + Date.now().toString().slice(-4);
+  }
+
+  // Step 2: Upload foto ke Cloudinary pakai NoId sebagai nama file
   showToast('📤 Mengupload foto...');
-  const romaji = document.getElementById('romaji').value.trim().replace(/\s+/g,'_') || 'kandidat';
-  const namaFile = romaji + '_' + Date.now();
-  const linkFoto = fotoFile ? await uploadFotoCloudinary(namaFile) : '';
+  const linkFoto = fotoFile ? await uploadFotoCloudinary(noIdBrowser) : '';
 
   showToast('💾 Menyimpan data...');
 
