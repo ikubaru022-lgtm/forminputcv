@@ -258,10 +258,14 @@ async function cariKandidat() {
   const input = document.getElementById('noIdInput').value.trim();
   if (!input) { showStatus('Masukkan nomor ID kandidat!', 'error'); return; }
 
-  const noIds = input.split(',').map(s => s.trim()).filter(s => s);
-  setLoading(true);
-  document.getElementById('kandidatList').innerHTML = '';
-  document.getElementById('previewSection').style.display = 'none';
+ const noIds = input.split(',').map(s => {
+  s = s.trim();
+  // Kalau hanya angka, tambah "KD-" di depan
+  if (/^\d+$/.test(s)) s = 'KD-' + s;
+  // Kalau huruf besar tanpa KD-, tambah KD-
+  if (/^[0-9]+$/i.test(s)) s = 'KD-' + s;
+  return s;
+}).filter(s => s);
 
   try {
     let results = [];
